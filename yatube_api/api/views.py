@@ -1,5 +1,6 @@
-from rest_framework import viewsets, mixins, permissions, filters
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import viewsets, mixins, permissions, filters, status
+from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
+from rest_framework.response import Response
 
 from .pagination import PostPagination
 from .serializers import (
@@ -40,6 +41,12 @@ class FollowViewSet(
 
     def get_queryset(self):
         return Follow.objects.filter(user=self.request.user)
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    def update(self, request, *args, **kwargs):
+        raise MethodNotAllowed(request.method)
 
 
 class PostViewSet(CheckAuthorMixin):
