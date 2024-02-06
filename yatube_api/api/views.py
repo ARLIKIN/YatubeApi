@@ -1,5 +1,7 @@
 from rest_framework import viewsets, mixins, permissions, filters, status
-from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
+from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, \
+    ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
 from .pagination import PostPagination
@@ -34,10 +36,22 @@ class FollowViewSet(
     serializer_class = FollowSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (filters.SearchFilter,)
-    search_fields = ('$following',)
+    search_fields = ('$following__username',)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        following_username = serializer.validated_data['following']
+        following = User.objects.get(username=following_username['username'])
+        if following.username == self.request.user.username:
+            raise ValidationError("Нельзя подписаться на самого себя")
+        if Follow.objects.filter(
+                user=self.request.user,
+                following=following
+        ).exists():
+            raise ValidationError("Вы уже подписаны на этого пользователся")
+        serializer.save(
+            user=self.request.user,
+            following=following
+        )
 
     def get_queryset(self):
         return Follow.objects.filter(user=self.request.user)
@@ -57,6 +71,11 @@ class PostViewSet(CheckAuthorMixin):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
+    def retrieve(self, request, *args, **kwargs):
+        instance = get_object_or_404(self.queryset, pk=kwargs.get('pk'))
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Group.objects.all()
@@ -73,12 +92,18 @@ class CommentViewSet(CheckAuthorMixin):
             post=post
         )
 
+    def retrieve(self, request, *args, **kwargs):
+        instance = get_object_or_404(self.queryset, pk=kwargs.get('pk'))
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
     def get_queryset(self):
         return self.get_post().comments.all()
 
     def get_post(self):
         return (
-            Post.objects
-            .select_related('author')
-            .get(pk=self.kwargs.get('post_id'))
+            get_object_or_404(
+                Post.objects.select_related('author'),
+                pk=self.kwargs.get('post_id')
+            )
         )

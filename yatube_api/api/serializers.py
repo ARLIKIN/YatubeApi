@@ -9,6 +9,7 @@ class AuthorMixin(serializers.ModelSerializer):
 
 class FollowSerializer(serializers.ModelSerializer):
     user = serializers.CharField(source='user.username', required=False)
+    following = serializers.CharField(source='following.username')
 
     class Meta:
         model = Follow
