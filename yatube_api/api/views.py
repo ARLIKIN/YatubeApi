@@ -8,7 +8,7 @@ from .serializers import (
     CommentSerializer,
     FollowSerializer
 )
-from posts.models import Post, Group, Follow
+from posts.models import Post, Group, Follow, User
 
 EXCEPTION_MESSAGES = 'Изменение чужого контента запрещено!'
 
@@ -33,7 +33,10 @@ class FollowViewSet(
     serializer_class = FollowSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (filters.SearchFilter,)
-    search_fields = ('$following__name',)
+    search_fields = ('$following',)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
     def get_queryset(self):
         return Follow.objects.filter(user=self.request.user)

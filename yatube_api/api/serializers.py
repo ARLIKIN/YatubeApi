@@ -8,10 +8,12 @@ class AuthorMixin(serializers.ModelSerializer):
 
 
 class FollowSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.username', required=False)
 
     class Meta:
         model = Follow
-        fields = ('user', 'following')
+        fields = ('user', 'following',)
+        read_only_fields = ('user',)
 
 
 class PostSerializer(AuthorMixin):
