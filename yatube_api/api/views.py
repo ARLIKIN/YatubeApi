@@ -92,18 +92,12 @@ class CommentViewSet(CheckAuthorMixin):
             post=post
         )
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = get_object_or_404(self.queryset, pk=kwargs.get('pk'))
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
     def get_queryset(self):
         return self.get_post().comments.all()
 
     def get_post(self):
         return (
-            get_object_or_404(
-                Post.objects.select_related('author'),
-                pk=self.kwargs.get('post_id')
-            )
+            Post.objects
+            .select_related('author')
+            .get(pk=self.kwargs.get('post_id'))
         )
