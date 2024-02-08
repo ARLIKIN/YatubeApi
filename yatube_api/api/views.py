@@ -1,7 +1,5 @@
 from rest_framework import viewsets, mixins, permissions, filters, status
-from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, \
-    ValidationError
-from rest_framework.generics import get_object_or_404
+from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
 from rest_framework.response import Response
 
 from .pagination import PostPagination
@@ -11,21 +9,24 @@ from .serializers import (
     CommentSerializer,
     FollowSerializer
 )
-from posts.models import Post, Group, Follow, User
+from posts.models import Post, Group, Follow
 
-EXCEPTION_MESSAGES = 'Изменение чужого контента запрещено!'
+EXCEPTION_MESSAGES = 'Изменения чужого контента запрещено!'
 
 
 class CheckAuthorMixin(viewsets.ModelViewSet):
     def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
+        if self.check_author(serializer.instance.author):
             raise PermissionDenied(EXCEPTION_MESSAGES)
         super(CheckAuthorMixin, self).perform_update(serializer)
 
     def perform_destroy(self, instance):
-        if instance.author != self.request.user:
+        if self.check_author(instance.author):
             raise PermissionDenied(EXCEPTION_MESSAGES)
         super(CheckAuthorMixin, self).perform_destroy(instance)
+
+    def check_author(self, author):
+        return author != self.request.user
 
 
 class FollowViewSet(
@@ -38,21 +39,6 @@ class FollowViewSet(
     filter_backends = (filters.SearchFilter,)
     search_fields = ('$following__username',)
 
-    def perform_create(self, serializer):
-        following_username = serializer.validated_data['following']
-        following = User.objects.get(username=following_username['username'])
-        if following.username == self.request.user.username:
-            raise ValidationError("Нельзя подписаться на самого себя")
-        if Follow.objects.filter(
-                user=self.request.user,
-                following=following
-        ).exists():
-            raise ValidationError("Вы уже подписаны на этого пользователся")
-        serializer.save(
-            user=self.request.user,
-            following=following
-        )
-
     def get_queryset(self):
         return Follow.objects.filter(user=self.request.user)
 
@@ -64,17 +50,12 @@ class FollowViewSet(
 
 
 class PostViewSet(CheckAuthorMixin):
-    queryset = Post.objects.select_related('author').all()
+    queryset = Post.objects.select_related('author')
     serializer_class = PostSerializer
     pagination_class = PostPagination
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = get_object_or_404(self.queryset, pk=kwargs.get('pk'))
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from posts.models import Post, Group, Comment, Follow
+from posts.models import Post, Group, Comment, Follow, User
+from rest_framework.exceptions import ValidationError
 
 
 class AuthorMixin(serializers.ModelSerializer):
@@ -15,6 +16,19 @@ class FollowSerializer(serializers.ModelSerializer):
         model = Follow
         fields = ('user', 'following',)
         read_only_fields = ('user',)
+
+    def create(self, validated_data):
+        following_username = validated_data.get('following')
+        user = self.context['request'].user
+        following = User.objects.get(username=following_username['username'])
+        if following.username == user.username:
+            raise ValidationError("Нельзя подписаться на самого себя")
+        if Follow.objects.filter(
+                user=user,
+                following=following
+        ).exists():
+            raise ValidationError("Вы уже подписаны на этого пользователся")
+        return Follow.objects.create(user=user, following=following)
 
 
 class PostSerializer(AuthorMixin):
