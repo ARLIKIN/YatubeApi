@@ -17,17 +17,20 @@ class FollowSerializer(serializers.ModelSerializer):
         fields = ('user', 'following',)
         read_only_fields = ('user',)
 
+    def validate(self, data):
+        following_username = data.get('following')
+        user = self.context['request'].user
+        if following_username['username'] == user.username:
+            raise ValidationError("Нельзя подписаться на самого себя")
+        following = User.objects.get(username=following_username['username'])
+        if Follow.objects.filter(user=user, following=following).exists():
+            raise ValidationError("Вы уже подписаны на этого пользователя")
+        return data
+
     def create(self, validated_data):
         following_username = validated_data.get('following')
         user = self.context['request'].user
         following = User.objects.get(username=following_username['username'])
-        if following.username == user.username:
-            raise ValidationError("Нельзя подписаться на самого себя")
-        if Follow.objects.filter(
-                user=user,
-                following=following
-        ).exists():
-            raise ValidationError("Вы уже подписаны на этого пользователся")
         return Follow.objects.create(user=user, following=following)
 
 
