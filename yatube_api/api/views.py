@@ -1,6 +1,6 @@
-from rest_framework import viewsets, mixins, permissions, filters, status
-from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
-from rest_framework.response import Response
+from rest_framework import viewsets, mixins, permissions, filters
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import get_object_or_404
 
 from .pagination import PostPagination
 from .serializers import (
@@ -9,24 +9,23 @@ from .serializers import (
     CommentSerializer,
     FollowSerializer
 )
-from posts.models import Post, Group, Follow
+from posts.models import Post, Group, User
 
-EXCEPTION_MESSAGES = 'Изменения чужого контента запрещено!'
+EXCEPTION_MESSAGE = 'Изменения чужого контента запрещено!'
 
 
-class CheckAuthorMixin(viewsets.ModelViewSet):
+class BaseCheckAuthor(viewsets.ModelViewSet):
     def perform_update(self, serializer):
-        if self.check_author(serializer.instance.author):
-            raise PermissionDenied(EXCEPTION_MESSAGES)
-        super(CheckAuthorMixin, self).perform_update(serializer)
+        self.check_author(serializer.instance.author)
+        super(BaseCheckAuthor, self).perform_update(serializer)
 
     def perform_destroy(self, instance):
-        if self.check_author(instance.author):
-            raise PermissionDenied(EXCEPTION_MESSAGES)
-        super(CheckAuthorMixin, self).perform_destroy(instance)
+        self.check_author(instance.author)
+        super(BaseCheckAuthor, self).perform_destroy(instance)
 
     def check_author(self, author):
-        return author != self.request.user
+        if author != self.request.user:
+            raise PermissionDenied(EXCEPTION_MESSAGE)
 
 
 class FollowViewSet(
@@ -40,16 +39,11 @@ class FollowViewSet(
     search_fields = ('$following__username',)
 
     def get_queryset(self):
-        return Follow.objects.filter(user=self.request.user)
-
-    def retrieve(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    def update(self, request, *args, **kwargs):
-        raise MethodNotAllowed(request.method)
+        user = get_object_or_404(User, username=self.request.user.username)
+        return user.users.all()
 
 
-class PostViewSet(CheckAuthorMixin):
+class PostViewSet(BaseCheckAuthor):
     queryset = Post.objects.select_related('author')
     serializer_class = PostSerializer
     pagination_class = PostPagination
@@ -63,7 +57,7 @@ class GroupViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = GroupSerializer
 
 
-class CommentViewSet(CheckAuthorMixin):
+class CommentViewSet(BaseCheckAuthor):
     serializer_class = CommentSerializer
 
     def perform_create(self, serializer):
@@ -77,8 +71,8 @@ class CommentViewSet(CheckAuthorMixin):
         return self.get_post().comments.all()
 
     def get_post(self):
-        return (
+        return get_object_or_404(
             Post.objects
-            .select_related('author')
-            .get(pk=self.kwargs.get('post_id'))
+            .select_related('author'),
+            pk=self.kwargs.get('post_id')
         )
