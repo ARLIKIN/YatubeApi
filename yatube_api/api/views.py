@@ -68,11 +68,10 @@ class CommentViewSet(BaseCheckAuthor):
         )
 
     def get_queryset(self):
-        return self.get_post().comments.all()
+        return self.get_post().comments.select_related('author').all()
 
     def get_post(self):
         return get_object_or_404(
-            Post.objects
-            .select_related('author'),
+            Post,
             pk=self.kwargs.get('post_id')
         )
